@@ -703,11 +703,14 @@ class DirectMouseOverlay extends StatelessWidget {
 
   final DosboxEngine engine;
 
-  void _sendTouch(Offset localPos, Size size, bool pressed) {
+  void _sendTouch(Offset localPos, Size size, bool pressed, {bool updateLeftButton = false}) {
     if (size.width <= 0 || size.height <= 0) return;
     final normX = (localPos.dx / size.width) * 2.0 - 1.0;
     final normY = (localPos.dy / size.height) * 2.0 - 1.0;
     engine.sendPointer(normX, normY, pressed);
+    if (updateLeftButton) {
+      engine.sendMouseButton(MouseButton.left, pressed);
+    }
   }
 
   @override
@@ -720,20 +723,35 @@ class DirectMouseOverlay extends StatelessWidget {
             Positioned.fill(
               child: Listener(
                 behavior: HitTestBehavior.translucent,
-                onPointerDown: (e) => _sendTouch(e.localPosition, size, true),
+                onPointerDown: (e) =>
+                    _sendTouch(e.localPosition, size, true, updateLeftButton: true),
                 onPointerMove: (e) => _sendTouch(e.localPosition, size, true),
-                onPointerUp: (e) => _sendTouch(e.localPosition, size, false),
-                onPointerCancel: (e) => _sendTouch(e.localPosition, size, false),
+                onPointerUp: (e) =>
+                    _sendTouch(e.localPosition, size, false, updateLeftButton: true),
+                onPointerCancel: (e) =>
+                    _sendTouch(e.localPosition, size, false, updateLeftButton: true),
               ),
             ),
             Positioned(
               right: 16,
               bottom: 16,
-              child: RetroActionButton(
-                label: '右键',
-                size: 52,
-                borderRadius: 14,
-                onChanged: (d) => engine.sendMouseButton(MouseButton.right, d),
+              child: Row(
+                children: [
+                  RetroActionButton(
+                    label: '左键',
+                    size: 52,
+                    borderRadius: 14,
+                    color: const Color(0xAA00695C),
+                    onChanged: (d) => engine.sendMouseButton(MouseButton.left, d),
+                  ),
+                  const SizedBox(width: 10),
+                  RetroActionButton(
+                    label: '右键',
+                    size: 52,
+                    borderRadius: 14,
+                    onChanged: (d) => engine.sendMouseButton(MouseButton.right, d),
+                  ),
+                ],
               ),
             ),
           ],

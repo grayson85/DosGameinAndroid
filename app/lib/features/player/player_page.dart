@@ -100,7 +100,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       final options = <String, String>{
         'dosbox_pure_cycles': widget.settings.cyclesPreset,
         'dosbox_pure_mouse_input':
-            _controlMode == ControlMode.directMouse ? 'direct' : 'pad',
+            _controlMode == ControlMode.directMouse ? 'direct' : 'virtual',
         'dosbox_pure_aspect_correction': 'true',
         'dosbox_pure_conf': useAutoConf ? 'outside' : 'false',
       };
@@ -152,7 +152,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     setState(() => _controlMode = next);
     _engine.updateCoreOption(
       'dosbox_pure_mouse_input',
-      next == ControlMode.directMouse ? 'direct' : 'pad',
+      next == ControlMode.directMouse ? 'direct' : 'virtual',
     );
   }
 
