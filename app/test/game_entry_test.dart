@@ -1,3 +1,4 @@
+import 'package:dosbox_cn/features/controls/virtual_controls.dart';
 import 'package:dosbox_cn/models/game_entry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -52,7 +53,7 @@ void main() {
       expect(pal.displayName, '仙剑奇侠传');
       expect(pal.releaseYear, 1995);
       expect(pal.executable, 'PAL!.EXE');
-      expect(pal.defaultControlMode, ControlMode.rpgPad);
+      expect(pal.defaultControlMode, ControlMode.joystick);
       expect(pal.formattedSize, '19.3 MB');
       expect(pal.keymaps['Alt'], '菜单');
       expect(
@@ -72,6 +73,42 @@ void main() {
       expect(sim.cheats['cass'], '得到金钱250元');
       expect(sim.matchesQuery('simcity'), isTrue);
       expect(sim.matchesQuery('仙剑'), isFalse);
+    });
+  });
+
+  group('VirtualJoystick direction mapping', () {
+    test('returns neutral inside deadzone', () {
+      expect(
+        computeJoystickDirections(const Offset(5, -5), deadzone: 12),
+        JoystickDirections.neutral,
+      );
+    });
+
+    test('maps cardinal and diagonal sectors accurately', () {
+      expect(
+        computeJoystickDirections(const Offset(40, 0), deadzone: 10),
+        const JoystickDirections(right: true),
+      );
+      expect(
+        computeJoystickDirections(const Offset(-40, 0), deadzone: 10),
+        const JoystickDirections(left: true),
+      );
+      expect(
+        computeJoystickDirections(const Offset(0, -40), deadzone: 10),
+        const JoystickDirections(up: true),
+      );
+      expect(
+        computeJoystickDirections(const Offset(0, 40), deadzone: 10),
+        const JoystickDirections(down: true),
+      );
+      expect(
+        computeJoystickDirections(const Offset(30, -30), deadzone: 10),
+        const JoystickDirections(up: true, right: true),
+      );
+      expect(
+        computeJoystickDirections(const Offset(-30, 30), deadzone: 10),
+        const JoystickDirections(down: true, left: true),
+      );
     });
   });
 }

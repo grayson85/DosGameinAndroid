@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dosbox_engine/dosbox_engine.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Low-latency virtual button using raw [Listener] to avoid GestureDetector tap delay.
 class RetroActionButton extends StatefulWidget {
@@ -220,24 +222,307 @@ class _DPadSegment extends StatelessWidget {
   }
 }
 
-/// RPG / Action virtual gamepad overlay (D-Pad + Enter/Space/Alt/Esc).
+class JoystickDirections {
+  const JoystickDirections({
+    this.up = false,
+    this.down = false,
+    this.left = false,
+    this.right = false,
+  });
+
+  static const neutral = JoystickDirections();
+
+  final bool up;
+  final bool down;
+  final bool left;
+  final bool right;
+
+  bool get isNeutral => !up && !down && !left && !right;
+
+  @override
+  bool operator ==(Object other) =>
+      other is JoystickDirections &&
+      up == other.up &&
+      down == other.down &&
+      left == other.left &&
+      right == other.right;
+
+  @override
+  int get hashCode => Object.hash(up, down, left, right);
+}
+
+/// Converts a joystick displacement vector into crisp 4-way cardinal + 8-way diagonal arrow states.
+/// Cardinal sectors are slightly wider (±27°) so RPGs like Legend of Sword and Fairy feel steady.
+JoystickDirections computeJoystickDirections(
+  Offset delta, {
+  required double deadzone,
+}) {
+  if (delta.distance < deadzone) {
+    return JoystickDirections.neutral;
+  }
+  final angleDeg = math.atan2(delta.dy, delta.dx) * 180.0 / math.pi;
+  if (angleDeg.abs() <= 27.0) {
+    return const JoystickDirections(right: true);
+  }
+  if (angleDeg > 27.0 && angleDeg < 63.0) {
+    return const JoystickDirections(down: true, right: true);
+  }
+  if (angleDeg >= 63.0 && angleDeg <= 117.0) {
+    return const JoystickDirections(down: true);
+  }
+  if (angleDeg > 117.0 && angleDeg < 153.0) {
+    return const JoystickDirections(down: true, left: true);
+  }
+  if (angleDeg.abs() >= 153.0) {
+    return const JoystickDirections(left: true);
+  }
+  if (angleDeg > -153.0 && angleDeg < -117.0) {
+    return const JoystickDirections(up: true, left: true);
+  }
+  if (angleDeg >= -117.0 && angleDeg <= -63.0) {
+    return const JoystickDirections(up: true);
+  }
+  return const JoystickDirections(up: true, right: true);
+}
+
+/// Mobile-RPG style floating-anchor virtual thumbstick mapped to DOS arrow keys.
+class VirtualJoystick extends StatefulWidget {
+  const VirtualJoystick({
+    super.key,
+    required this.engine,
+    this.touchZoneSize = 184,
+    this.baseSize = 144,
+    this.knobSize = 58,
+  });
+
+  final DosboxEngine engine;
+  final double touchZoneSize;
+  final double baseSize;
+  final double knobSize;
+
+  @override
+  State<VirtualJoystick> createState() => _VirtualJoystickState();
+}
+
+class _VirtualJoystickState extends State<VirtualJoystick> {
+  int? _activePointer;
+  Offset? _anchor;
+  Offset _knobOffset = Offset.zero;
+  JoystickDirections _dirs = JoystickDirections.neutral;
+
+  double get _maxTravel => (widget.baseSize - widget.knobSize) * 0.5 + 8.0;
+  Offset get _restCenter => Offset(widget.touchZoneSize / 2, widget.touchZoneSize / 2);
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (_activePointer != null) return;
+    _activePointer = event.pointer;
+
+    final halfBase = widget.baseSize / 2;
+    final minCoord = halfBase;
+    final maxCoord = widget.touchZoneSize - halfBase;
+    final clampedAnchor = Offset(
+      event.localPosition.dx.clamp(minCoord, maxCoord),
+      event.localPosition.dy.clamp(minCoord, maxCoord),
+    );
+
+    setState(() {
+      _anchor = clampedAnchor;
+      _knobOffset = Offset.zero;
+    });
+    _updateFromPosition(event.localPosition);
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (event.pointer != _activePointer) return;
+    _updateFromPosition(event.localPosition);
+  }
+
+  void _onPointerEnd(PointerEvent event) {
+    if (event.pointer != _activePointer) return;
+    _release();
+  }
+
+  void _updateFromPosition(Offset pos) {
+    final anchor = _anchor ?? _restCenter;
+    final rawDelta = pos - anchor;
+    final dist = rawDelta.distance;
+    final clampedOffset = dist > _maxTravel && dist > 0
+        ? Offset(rawDelta.dx / dist * _maxTravel, rawDelta.dy / dist * _maxTravel)
+        : rawDelta;
+
+    final nextDirs = computeJoystickDirections(
+      clampedOffset,
+      deadzone: _maxTravel * 0.22,
+    );
+
+    if (_dirs.isNeutral && !nextDirs.isNeutral) {
+      HapticFeedback.selectionClick();
+    }
+    _syncKeys(nextDirs);
+
+    setState(() {
+      _knobOffset = clampedOffset;
+      _dirs = nextDirs;
+    });
+  }
+
+  void _release() {
+    _activePointer = null;
+    _syncKeys(JoystickDirections.neutral);
+    if (mounted) {
+      setState(() {
+        _anchor = null;
+        _knobOffset = Offset.zero;
+        _dirs = JoystickDirections.neutral;
+      });
+    }
+  }
+
+  void _syncKeys(JoystickDirections next) {
+    if (next.up != _dirs.up) widget.engine.sendKeyEvent(RetroKey.up, next.up);
+    if (next.down != _dirs.down) widget.engine.sendKeyEvent(RetroKey.down, next.down);
+    if (next.left != _dirs.left) widget.engine.sendKeyEvent(RetroKey.left, next.left);
+    if (next.right != _dirs.right) widget.engine.sendKeyEvent(RetroKey.right, next.right);
+  }
+
+  @override
+  void dispose() {
+    _syncKeys(JoystickDirections.neutral);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final center = _anchor ?? _restCenter;
+    final active = _activePointer != null;
+    final baseLeft = center.dx - widget.baseSize / 2;
+    final baseTop = center.dy - widget.baseSize / 2;
+    final knobLeft = center.dx + _knobOffset.dx - widget.knobSize / 2;
+    final knobTop = center.dy + _knobOffset.dy - widget.knobSize / 2;
+
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerEnd,
+      onPointerCancel: _onPointerEnd,
+      child: SizedBox(
+        width: widget.touchZoneSize,
+        height: widget.touchZoneSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Outer joystick base ring
+            Positioned(
+              left: baseLeft,
+              top: baseTop,
+              child: Container(
+                width: widget.baseSize,
+                height: widget.baseSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: active ? const Color(0x661C2430) : const Color(0x441C2430),
+                  border: Border.all(
+                    color: active ? Colors.cyanAccent.withValues(alpha: 0.7) : Colors.white24,
+                    width: 2,
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Positioned(
+                      top: 6,
+                      child: Icon(
+                        Icons.keyboard_arrow_up,
+                        size: 20,
+                        color: _dirs.up ? Colors.cyanAccent : Colors.white30,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 6,
+                      child: Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 20,
+                        color: _dirs.down ? Colors.cyanAccent : Colors.white30,
+                      ),
+                    ),
+                    Positioned(
+                      left: 6,
+                      child: Icon(
+                        Icons.keyboard_arrow_left,
+                        size: 20,
+                        color: _dirs.left ? Colors.cyanAccent : Colors.white30,
+                      ),
+                    ),
+                    Positioned(
+                      right: 6,
+                      child: Icon(
+                        Icons.keyboard_arrow_right,
+                        size: 20,
+                        color: _dirs.right ? Colors.cyanAccent : Colors.white30,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Movable thumbstick knob
+            Positioned(
+              left: knobLeft,
+              top: knobTop,
+              child: Container(
+                width: widget.knobSize,
+                height: widget.knobSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: active
+                        ? const [Color(0xEE26C6DA), Color(0xCC00838F)]
+                        : const [Color(0xCC607D8B), Color(0xAA37474F)],
+                  ),
+                  border: Border.all(
+                    color: active ? Colors.cyanAccent : Colors.white38,
+                    width: 2,
+                  ),
+                  boxShadow: active
+                      ? [
+                          BoxShadow(
+                            color: Colors.cyanAccent.withValues(alpha: 0.35),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// RPG / Action virtual gamepad overlay (Virtual Joystick or D-Pad + Enter/Space/Alt/Esc).
 class RpgPadOverlay extends StatelessWidget {
   const RpgPadOverlay({
     super.key,
     required this.engine,
+    this.useJoystick = true,
   });
 
   final DosboxEngine engine;
+  final bool useJoystick;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          SlidingDPad(engine: engine),
+          useJoystick ? VirtualJoystick(engine: engine) : SlidingDPad(engine: engine),
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [

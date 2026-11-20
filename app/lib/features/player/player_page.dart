@@ -309,9 +309,13 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
               if (_textureId != null && !_showKeyboard)
                 Positioned.fill(
                   child: switch (_controlMode) {
+                    ControlMode.joystick => Align(
+                        alignment: Alignment.bottomCenter,
+                        child: RpgPadOverlay(engine: _engine, useJoystick: true),
+                      ),
                     ControlMode.rpgPad => Align(
                         alignment: Alignment.bottomCenter,
-                        child: RpgPadOverlay(engine: _engine),
+                        child: RpgPadOverlay(engine: _engine, useJoystick: false),
                       ),
                     ControlMode.touchpadMouse => TouchpadMouseOverlay(engine: _engine),
                     ControlMode.directMouse => Center(

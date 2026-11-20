@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 enum ControlMode {
+  joystick,
   rpgPad,
   touchpadMouse,
   directMouse,
@@ -9,8 +10,10 @@ enum ControlMode {
 extension ControlModeLabel on ControlMode {
   String get label {
     switch (this) {
+      case ControlMode.joystick:
+        return '摇杆/键盘';
       case ControlMode.rpgPad:
-        return '手柄/键盘';
+        return '十字键/键盘';
       case ControlMode.touchpadMouse:
         return '触控板鼠标';
       case ControlMode.directMouse:
@@ -86,7 +89,7 @@ class GameEntry {
       case 'ACT':
       case 'SPG':
       default:
-        return ControlMode.rpgPad;
+        return ControlMode.joystick;
     }
   }
 
