@@ -107,7 +107,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   }
 
   void _cycleControlMode() {
-    final values = ControlMode.values;
+    const values = ControlMode.values;
     final next = values[(_controlMode.index + 1) % values.length];
     setState(() => _controlMode = next);
     _engine.updateCoreOption(

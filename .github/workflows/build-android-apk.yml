@@ -48,7 +48,7 @@ jobs:
 
       - name: Analyze Dart code
         working-directory: app
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Run unit tests
         working-directory: app

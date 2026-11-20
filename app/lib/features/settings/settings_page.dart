@@ -87,7 +87,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _cyclesOptions.any((o) => o.$1 == s.cyclesPreset) ? s.cyclesPreset : 'auto',
+            initialValue: _cyclesOptions.any((o) => o.$1 == s.cyclesPreset) ? s.cyclesPreset : 'auto',
             decoration: const InputDecoration(
               labelText: 'DOS CPU 速度（Cycles）',
               border: OutlineInputBorder(),

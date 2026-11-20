@@ -465,7 +465,7 @@ class _LibraryPageState extends State<LibraryPage> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.teal.withOpacity(0.9),
+                          color: Colors.teal.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Text('可玩',

@@ -62,7 +62,7 @@ class DownloadService {
       if (await destFile.exists()) {
         await destFile.delete();
       }
-      return tempFile.rename(destFile.path);
+      return await tempFile.rename(destFile.path);
     } finally {
       client.close();
       if (await tempFile.exists()) {
