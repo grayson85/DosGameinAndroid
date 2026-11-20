@@ -1,0 +1,31 @@
+name: Build DOSBox-Pure Android Core
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-core:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dosbox-pure
+        uses: actions/checkout@v4
+        with:
+          repository: libretro/dosbox-pure
+          path: dosbox-pure
+
+      - name: Build arm64-v8a core with Android NDK
+        run: |
+          NDK_DIR="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          echo "Using NDK: $NDK_DIR"
+          cd dosbox-pure/jni
+          "$NDK_DIR/ndk-build" -j"$(nproc)" APP_ABI=arm64-v8a APP_PLATFORM=android-24
+          mkdir -p ../../out/arm64-v8a
+          cp ../libs/arm64-v8a/libretro.so ../../out/arm64-v8a/libdosbox_pure_libretro_android.so
+          ls -lh ../../out/arm64-v8a/libdosbox_pure_libretro_android.so
+          nm -D ../../out/arm64-v8a/libdosbox_pure_libretro_android.so | grep -E "T (retro_init|retro_run|retro_load_game)$"
+
+      - name: Upload core artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dosbox-pure-android-arm64
+          path: out/arm64-v8a/libdosbox_pure_libretro_android.so
