@@ -5,6 +5,7 @@ buildscript {
     ext.kotlin_version = "2.1.0"
     repositories {
         google()
+        maven { url "https://maven-central.storage-download.googleapis.com/maven2" }
         mavenCentral()
     }
     dependencies {
@@ -16,6 +17,7 @@ buildscript {
 allprojects {
     repositories {
         google()
+        maven { url "https://maven-central.storage-download.googleapis.com/maven2" }
         mavenCentral()
     }
 }
