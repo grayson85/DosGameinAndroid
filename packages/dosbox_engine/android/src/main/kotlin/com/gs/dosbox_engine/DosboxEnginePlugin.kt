@@ -1,12 +1,15 @@
 package com.gs.dosbox_engine
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.view.Surface
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
 import java.io.File
+import java.util.concurrent.Executors
 
 internal object DosboxNative {
     init {
@@ -47,6 +50,9 @@ class DosboxEnginePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private lateinit var appContext: Context
     private lateinit var textureRegistry: TextureRegistry
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val lifecycleExecutor = Executors.newSingleThreadExecutor()
+
     private var surfaceEntry: TextureRegistry.SurfaceTextureEntry? = null
     private var activeSurface: Surface? = null
 
@@ -58,11 +64,12 @@ class DosboxEnginePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        releaseSession()
+        releaseSessionSync()
+        lifecycleExecutor.shutdown()
         channel.setMethodCallHandler(null)
     }
 
-    private fun releaseSession() {
+    private fun releaseSessionSync() {
         DosboxNative.nativeStop()
         activeSurface?.release()
         activeSurface = null
@@ -95,43 +102,50 @@ class DosboxEnginePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     return
                 }
 
-                File(saveDir).mkdirs()
-                File(systemDir).mkdirs()
-
-                releaseSession()
-
+                // Create Flutter SurfaceTexture on the main thread
                 val entry = textureRegistry.createSurfaceTexture()
                 val surfaceTexture = entry.surfaceTexture()
                 surfaceTexture.setDefaultBufferSize(640, 480)
                 val surface = Surface(surfaceTexture)
 
-                surfaceEntry = entry
-                activeSurface = surface
-
                 val keys = coreOptions.keys.toTypedArray()
                 val values = keys.map { coreOptions[it] ?: "" }.toTypedArray()
 
-                val err = DosboxNative.nativeStartGame(
-                    coreFile.absolutePath,
-                    gamePath,
-                    saveDir,
-                    systemDir,
-                    surface,
-                    linearFilter,
-                    keys,
-                    values,
-                )
+                lifecycleExecutor.execute {
+                    File(saveDir).mkdirs()
+                    File(systemDir).mkdirs()
 
-                if (err != null) {
-                    releaseSession()
-                    result.error("START_FAILED", err, null)
-                } else {
-                    result.success(
-                        mapOf(
-                            "textureId" to entry.id(),
-                            "aspectRatio" to DosboxNative.nativeGetAspectRatio().toDouble(),
-                        )
+                    DosboxNative.nativeStop()
+                    val err = DosboxNative.nativeStartGame(
+                        coreFile.absolutePath,
+                        gamePath,
+                        saveDir,
+                        systemDir,
+                        surface,
+                        linearFilter,
+                        keys,
+                        values,
                     )
+                    val aspect = if (err == null) DosboxNative.nativeGetAspectRatio().toDouble() else (4.0 / 3.0)
+
+                    mainHandler.post {
+                        if (err != null) {
+                            surface.release()
+                            entry.release()
+                            result.error("START_FAILED", err, null)
+                        } else {
+                            activeSurface?.release()
+                            surfaceEntry?.release()
+                            activeSurface = surface
+                            surfaceEntry = entry
+                            result.success(
+                                mapOf(
+                                    "textureId" to entry.id(),
+                                    "aspectRatio" to aspect,
+                                )
+                            )
+                        }
+                    }
                 }
             }
 
@@ -146,8 +160,18 @@ class DosboxEnginePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             }
 
             "stop" -> {
-                releaseSession()
-                result.success(null)
+                val oldSurface = activeSurface
+                val oldEntry = surfaceEntry
+                activeSurface = null
+                surfaceEntry = null
+                lifecycleExecutor.execute {
+                    DosboxNative.nativeStop()
+                    mainHandler.post {
+                        oldSurface?.release()
+                        oldEntry?.release()
+                        result.success(null)
+                    }
+                }
             }
 
             "reset" -> {

@@ -44,7 +44,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _controlMode = widget.game.defaultControlMode;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _bootGame();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _bootGame();
+    });
   }
 
   @override
@@ -69,11 +71,13 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   bool _manualStartMenu = false;
 
   Future<void> _bootGame() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-      _textureId = null;
-    });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+        _textureId = null;
+      });
+    }
     try {
       final storage = StorageService.instance;
       final saveDir = await storage.getSavesDir();
