@@ -31,6 +31,7 @@ build/
 
 # Prebuilt native cores (downloaded/compiled by CI or local script)
 packages/dosbox_engine/android/src/main/jniLibs/**/*.so
+packages/dosbox_engine/ios/Libs/**/*.a
 
 # iOS / macOS
 **/ios/Pods/

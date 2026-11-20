@@ -22,3 +22,5 @@ flutter:
       android:
         package: com.gs.dosbox_engine
         pluginClass: DosboxEnginePlugin
+      ios:
+        pluginClass: DosboxEnginePlugin

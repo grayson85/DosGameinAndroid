@@ -448,7 +448,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     }
     return AspectRatio(
       aspectRatio: _aspectRatio,
-      child: Texture(textureId: _textureId!),
+      child: Texture(
+        textureId: _textureId!,
+        filterQuality:
+            widget.settings.linearFilter ? FilterQuality.low : FilterQuality.none,
+      ),
     );
   }
 

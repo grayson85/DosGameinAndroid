@@ -26,6 +26,30 @@ void LibretroHost::log(int level, const char* msg) {
 }
 
 bool LibretroHost::loadCoreLibrary(const std::string& path, std::string& errorOut) {
+#ifdef DOSBOX_STATIC_CORE
+    (void)path;
+    (void)errorOut;
+    core_.retro_init = ::retro_init;
+    core_.retro_deinit = ::retro_deinit;
+    core_.retro_api_version = ::retro_api_version;
+    core_.retro_get_system_info = ::retro_get_system_info;
+    core_.retro_get_system_av_info = ::retro_get_system_av_info;
+    core_.retro_set_environment = ::retro_set_environment;
+    core_.retro_set_video_refresh = ::retro_set_video_refresh;
+    core_.retro_set_audio_sample = ::retro_set_audio_sample;
+    core_.retro_set_audio_sample_batch = ::retro_set_audio_sample_batch;
+    core_.retro_set_input_poll = ::retro_set_input_poll;
+    core_.retro_set_input_state = ::retro_set_input_state;
+    core_.retro_set_controller_port_device = ::retro_set_controller_port_device;
+    core_.retro_reset = ::retro_reset;
+    core_.retro_run = ::retro_run;
+    core_.retro_serialize_size = ::retro_serialize_size;
+    core_.retro_serialize = ::retro_serialize;
+    core_.retro_unserialize = ::retro_unserialize;
+    core_.retro_load_game = ::retro_load_game;
+    core_.retro_unload_game = ::retro_unload_game;
+    return true;
+#else
     dlHandle_ = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
     if (!dlHandle_) {
         const char* err = dlerror();
@@ -66,13 +90,16 @@ bool LibretroHost::loadCoreLibrary(const std::string& path, std::string& errorOu
     }
 
     return true;
+#endif
 }
 
 void LibretroHost::unloadCoreLibrary() {
+#ifndef DOSBOX_STATIC_CORE
     if (dlHandle_) {
         dlclose(dlHandle_);
         dlHandle_ = nullptr;
     }
+#endif
     core_ = CoreSymbols{};
 }
 

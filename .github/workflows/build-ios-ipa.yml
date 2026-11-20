@@ -1,0 +1,81 @@
+name: Build iOS / iPadOS IPA
+
+on:
+  push:
+    branches: ["main", "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout dosbox-pure core
+        uses: actions/checkout@v4
+        with:
+          repository: libretro/dosbox-pure
+          path: .ci-dosbox-pure
+
+      - name: Build DOSBox-Pure iOS arm64 static library
+        run: |
+          cd .ci-dosbox-pure
+          make -j"$(sysctl -n hw.ncpu)" \
+            platform=ios-arm64 \
+            STATIC_LINKING=1 \
+            OUTNAME=libdosbox_pure_ios.a \
+            MINVERSION="-miphoneos-version-min=14.0"
+          mkdir -p ../packages/dosbox_engine/ios/Libs
+          cp libdosbox_pure_ios.a ../packages/dosbox_engine/ios/Libs/libdosbox_pure_ios.a
+          ls -lh ../packages/dosbox_engine/ios/Libs/libdosbox_pure_ios.a
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.29.3"
+          channel: stable
+          cache: true
+
+      - name: Generate and configure iOS Xcode project
+        working-directory: app
+        run: |
+          flutter create --platforms=ios --org com.gs --project-name dosbox_cn .
+          # Set Bundle ID to com.gs.dosgame, iOS 14.0 minimum, and universal iPhone+iPad support
+          sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = com\.gs\.dosboxCn;/PRODUCT_BUNDLE_IDENTIFIER = com.gs.dosgame;/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          # Enable iPad & iPhone display name + Files app sharing
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'DosBox CN'" ios/Runner/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'DosBox CN'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" ios/Runner/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" ios/Runner/Info.plist || true
+          # Ensure Podfile targets iOS 14.0
+          if [ -f ios/Podfile ]; then
+            sed -i '' "s/# platform :ios, '[0-9.]*'/platform :ios, '14.0'/g" ios/Podfile
+            sed -i '' "s/platform :ios, '[0-9.]*'/platform :ios, '14.0'/g" ios/Podfile
+          fi
+
+      - name: Install Flutter dependencies
+        working-directory: app
+        run: flutter pub get
+
+      - name: Build iOS Release App (unsigned for SideStore / Sideloadly)
+        working-directory: app
+        run: flutter build ios --release --no-codesign
+
+      - name: Package DosBoxCN-unsigned.ipa
+        working-directory: app
+        run: |
+          rm -rf build/ipa Payload
+          mkdir -p build/ipa/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ipa/Payload/Runner.app
+          cd build/ipa
+          zip -qry DosBoxCN-unsigned.ipa Payload
+          ls -lh DosBoxCN-unsigned.ipa
+
+      - name: Upload iOS / iPadOS IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dosbox-cn-ios-ipa
+          path: app/build/ipa/DosBoxCN-unsigned.ipa
