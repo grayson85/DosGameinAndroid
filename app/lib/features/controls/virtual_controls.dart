@@ -530,6 +530,27 @@ class RpgPadOverlay extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   RetroActionButton(
+                    label: 'Y',
+                    size: 42,
+                    borderRadius: 12,
+                    color: const Color(0x992E7D32),
+                    onChanged: (d) => engine.sendKeyEvent(RetroKey.y, d),
+                  ),
+                  const SizedBox(width: 14),
+                  RetroActionButton(
+                    label: 'N',
+                    size: 42,
+                    borderRadius: 12,
+                    color: const Color(0x99C62828),
+                    onChanged: (d) => engine.sendKeyEvent(RetroKey.n, d),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RetroActionButton(
                     label: 'Esc',
                     size: 50,
                     onChanged: (d) => engine.sendKeyEvent(RetroKey.escape, d),

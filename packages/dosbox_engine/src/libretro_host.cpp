@@ -289,7 +289,8 @@ void LibretroHost::flushPendingKeyEvents() {
     }
     if (!keyboardCallback_) return;
     for (const auto& ev : batch) {
-        keyboardCallback_(ev.down, ev.key, 0, 0);
+        const uint32_t ch = (ev.key >= 32 && ev.key <= 126) ? ev.key : 0;
+        keyboardCallback_(ev.down, ev.key, ch, 0);
     }
 }
 
