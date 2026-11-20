@@ -66,17 +66,30 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     }
   }
 
+  bool _manualStartMenu = false;
+
   Future<void> _bootGame() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _textureId = null;
+    });
     try {
       final storage = StorageService.instance;
       final saveDir = await storage.getSavesDir();
       final systemDir = await storage.getSystemDir();
+
+      final useAutoConf = !_manualStartMenu && widget.game.executable.isNotEmpty;
+      if (useAutoConf) {
+        await storage.writeAutoStartConf(widget.zipFile, widget.game.executable);
+      }
 
       final options = <String, String>{
         'dosbox_pure_cycles': widget.settings.cyclesPreset,
         'dosbox_pure_mouse_input':
             _controlMode == ControlMode.directMouse ? 'direct' : 'pad',
         'dosbox_pure_aspect_correction': 'true',
+        'dosbox_pure_conf': useAutoConf ? 'outside' : 'false',
       };
       if (widget.settings.soundFontFilename != null &&
           widget.settings.soundFontFilename!.isNotEmpty) {
@@ -251,8 +264,18 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                 ),
                 if (widget.game.executable.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text('推荐启动程序：${widget.game.executable}',
+                  Text('自动启动程序：${widget.game.executable}',
                       style: const TextStyle(color: Colors.cyanAccent)),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.list_alt, size: 18),
+                    label: Text(_manualStartMenu ? '改回自动启动 (${widget.game.executable})' : '改为手动选文件启动（打开 DOSBox 菜单）'),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _manualStartMenu = !_manualStartMenu;
+                      _bootGame();
+                    },
+                  ),
                 ],
                 if (widget.game.keymaps.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -446,6 +469,14 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                 size: 20,
               ),
               onPressed: () => setState(() => _showKeyboard = !_showKeyboard),
+            ),
+            IconButton(
+              tooltip: '重启游戏',
+              icon: const Icon(Icons.restart_alt, color: Colors.white, size: 20),
+              onPressed: () {
+                _engine.reset();
+                _showSnack('已重启游戏');
+              },
             ),
             IconButton(
               tooltip: '启动项与秘籍',

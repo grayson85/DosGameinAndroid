@@ -26,6 +26,7 @@ struct HostConfig {
 
 using VideoFrameCallback = std::function<void(
     const void* data, unsigned width, unsigned height, size_t pitch, unsigned pixelFormat)>;
+using VideoShutdownCallback = std::function<void()>;
 using AudioConfigCallback = std::function<void(double sampleRate)>;
 using LogCallback = std::function<void(int level, const char* msg)>;
 
@@ -38,6 +39,7 @@ public:
     LibretroHost& operator=(const LibretroHost&) = delete;
 
     void setVideoCallback(VideoFrameCallback cb) { videoCb_ = std::move(cb); }
+    void setVideoShutdownCallback(VideoShutdownCallback cb) { videoShutdownCb_ = std::move(cb); }
     void setAudioConfigCallback(AudioConfigCallback cb) { audioConfigCb_ = std::move(cb); }
     void setLogCallback(LogCallback cb) { logCb_ = std::move(cb); }
 
@@ -132,6 +134,7 @@ private:
     std::atomic<int> fastForward_{1};
 
     VideoFrameCallback videoCb_;
+    VideoShutdownCallback videoShutdownCb_;
     AudioConfigCallback audioConfigCb_;
     LogCallback logCb_;
     AudioRingBuffer audioBuffer_{65536};

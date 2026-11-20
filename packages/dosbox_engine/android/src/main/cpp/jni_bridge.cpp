@@ -28,6 +28,9 @@ struct EngineInstance {
                                      size_t pitch, unsigned fmt) {
             renderer.renderFrame(data, w, h, pitch, fmt);
         });
+        host.setVideoShutdownCallback([this]() {
+            renderer.release();
+        });
         host.setAudioConfigCallback([this](double sampleRate) {
             audio->start(static_cast<int32_t>(sampleRate));
         });

@@ -305,6 +305,10 @@ void LibretroHost::emulationLoop() {
             nextFrameTime = now;
         }
     }
+
+    if (videoShutdownCb_) {
+        videoShutdownCb_();
+    }
 }
 
 bool LibretroHost::environmentCb(unsigned cmd, void* data) {

@@ -188,6 +188,34 @@ class StorageService {
     return filename;
   }
 
+  /// Writes a `<basename>.conf` next to `<basename>.zip` so DOSBox-Pure (`dosbox_pure_conf = outside`)
+  /// automatically runs the verified `executable` from games.json without manual menu selection.
+  Future<File> writeAutoStartConf(File zipFile, String executable) async {
+    final dir = zipFile.parent.path;
+    final baseName = p.basenameWithoutExtension(zipFile.path);
+    final confFile = File(p.join(dir, '$baseName.conf'));
+
+    final normalized = executable.trim().replaceAll('/', '\\');
+    final lastSlash = normalized.lastIndexOf('\\');
+    final lines = <String>[
+      '[autoexec]',
+      '@echo off',
+      'C:',
+      r'cd \',
+    ];
+    if (lastSlash > 0) {
+      final subDir = normalized.substring(0, lastSlash);
+      final exeName = normalized.substring(lastSlash + 1);
+      lines.add('cd $subDir');
+      lines.add(exeName);
+    } else {
+      lines.add(normalized);
+    }
+
+    await confFile.writeAsString('${lines.join('\r\n')}\r\n', flush: true);
+    return confFile;
+  }
+
   String _sanitizeFilename(String raw) {
     return raw.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
   }
