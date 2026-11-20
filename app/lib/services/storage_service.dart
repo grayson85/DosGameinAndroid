@@ -188,28 +188,24 @@ class StorageService {
     return filename;
   }
 
-  Future<Directory> getDummyCdDir() async {
-    final dir = Directory(p.join((await getSystemDir()).path, 'dummy_cd'));
-    await dir.create(recursive: true);
-    return dir;
-  }
-
   /// Writes a `<basename>.conf` next to `<basename>.zip` so DOSBox-Pure (`dosbox_pure_conf = outside`)
-  /// mounts a virtual MSCDEX CD-ROM drive on D: (passing CD-ROM checks for games like 三国志5)
-  /// and automatically runs the verified `executable` from games.json.
-  Future<File> writeAutoStartConf(File zipFile, String executable) async {
+  /// automatically runs the verified `executable` from games.json.
+  Future<File> writeAutoStartConf(
+    File zipFile,
+    String executable, {
+    bool cdromMode = false,
+  }) async {
     final dir = zipFile.parent.path;
     final baseName = p.basenameWithoutExtension(zipFile.path);
     final confFile = File(p.join(dir, '$baseName.conf'));
-    final dummyCd = await getDummyCdDir();
 
     final normalized = executable.trim().replaceAll('/', '\\');
     final lastSlash = normalized.lastIndexOf('\\');
+    final drive = cdromMode ? 'D:' : 'C:';
     final lines = <String>[
       '[autoexec]',
       '@echo off',
-      'mount d "${dummyCd.path}" -t cdrom',
-      'C:',
+      drive,
       r'cd \',
     ];
     if (lastSlash > 0) {

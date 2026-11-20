@@ -14,11 +14,13 @@ class PlayerPage extends StatefulWidget {
     required this.game,
     required this.zipFile,
     required this.settings,
+    this.cdromMode = false,
   });
 
   final GameEntry game;
   final File zipFile;
   final AppSettings settings;
+  final bool cdromMode;
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -32,6 +34,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   double _aspectRatio = 4.0 / 3.0;
   String? _error;
   bool _loading = true;
+  String _statusText = '准备启动 DOSBox-Pure...';
 
   late ControlMode _controlMode;
   int _fastForward = 1;
@@ -76,6 +79,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         _loading = true;
         _error = null;
         _textureId = null;
+        _statusText = '1/3 准备存档与系统目录...';
       });
     }
     try {
@@ -85,7 +89,12 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
       final useAutoConf = !_manualStartMenu && widget.game.executable.isNotEmpty;
       if (useAutoConf) {
-        await storage.writeAutoStartConf(widget.zipFile, widget.game.executable);
+        if (mounted) setState(() => _statusText = '2/3 生成启动配置...');
+        await storage.writeAutoStartConf(
+          widget.zipFile,
+          widget.game.executable,
+          cdromMode: widget.cdromMode,
+        );
       }
 
       final options = <String, String>{
@@ -100,13 +109,27 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         options['dosbox_pure_midi'] = widget.settings.soundFontFilename!;
       }
 
-      final startResult = await _engine.startGame(
-        gamePath: widget.zipFile.path,
-        saveDir: saveDir.path,
-        systemDir: systemDir.path,
-        linearFilter: widget.settings.linearFilter,
-        coreOptions: options,
-      );
+      final launchPath =
+          widget.cdromMode ? '${widget.zipFile.path}#D' : widget.zipFile.path;
+
+      if (mounted) {
+        setState(() => _statusText = widget.cdromMode
+            ? '3/3 以 D: 光驱模式加载核心...'
+            : '3/3 正在加载 DOSBox-Pure 核心...');
+      }
+
+      final startResult = await _engine
+          .startGame(
+            gamePath: launchPath,
+            saveDir: saveDir.path,
+            systemDir: systemDir.path,
+            linearFilter: widget.settings.linearFilter,
+            coreOptions: options,
+          )
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => throw Exception('启动核心超时（12秒），请返回重试或切换手动启动菜单'),
+          );
 
       if (!mounted) return;
       setState(() {
@@ -392,12 +415,12 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   Widget _buildScreen() {
     if (_loading) {
-      return const Column(
+      return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 12),
-          Text('正在启动 DOSBox-Pure...', style: TextStyle(color: Colors.white70)),
+          const CircularProgressIndicator(),
+          const SizedBox(height: 12),
+          Text(_statusText, style: const TextStyle(color: Colors.white70)),
         ],
       );
     }

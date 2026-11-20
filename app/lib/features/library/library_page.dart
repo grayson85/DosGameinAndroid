@@ -172,7 +172,7 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
-  Future<void> _launchGame(GameEntry game) async {
+  Future<void> _launchGame(GameEntry game, {bool cdromMode = false}) async {
     final file = await StorageService.instance.getGameZipFile(game.identifier);
     if (!await file.exists()) {
       if (mounted) {
@@ -190,6 +190,7 @@ class _LibraryPageState extends State<LibraryPage> {
           game: game,
           zipFile: file,
           settings: widget.settings,
+          cdromMode: cdromMode,
         ),
       ),
     );
@@ -291,6 +292,20 @@ class _LibraryPageState extends State<LibraryPage> {
                       ],
                     ],
                   ),
+                  if (downloaded) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.album, size: 18),
+                        label: const Text('光驱模式启动（D: 虚拟光驱，解决三国志5等光盘检测）'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _launchGame(game, cdromMode: true);
+                        },
+                      ),
+                    ),
+                  ],
                   if (game.keymaps.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     const Text('按键说明',

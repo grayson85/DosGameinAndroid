@@ -112,38 +112,46 @@ class DosboxEnginePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 val values = keys.map { coreOptions[it] ?: "" }.toTypedArray()
 
                 lifecycleExecutor.execute {
-                    File(saveDir).mkdirs()
-                    File(systemDir).mkdirs()
+                    try {
+                        File(saveDir).mkdirs()
+                        File(systemDir).mkdirs()
 
-                    DosboxNative.nativeStop()
-                    val err = DosboxNative.nativeStartGame(
-                        coreFile.absolutePath,
-                        gamePath,
-                        saveDir,
-                        systemDir,
-                        surface,
-                        linearFilter,
-                        keys,
-                        values,
-                    )
-                    val aspect = if (err == null) DosboxNative.nativeGetAspectRatio().toDouble() else (4.0 / 3.0)
+                        DosboxNative.nativeStop()
+                        val err = DosboxNative.nativeStartGame(
+                            coreFile.absolutePath,
+                            gamePath,
+                            saveDir,
+                            systemDir,
+                            surface,
+                            linearFilter,
+                            keys,
+                            values,
+                        )
+                        val aspect = if (err == null) DosboxNative.nativeGetAspectRatio().toDouble() else (4.0 / 3.0)
 
-                    mainHandler.post {
-                        if (err != null) {
+                        mainHandler.post {
+                            if (err != null) {
+                                surface.release()
+                                entry.release()
+                                result.error("START_FAILED", err, null)
+                            } else {
+                                activeSurface?.release()
+                                surfaceEntry?.release()
+                                activeSurface = surface
+                                surfaceEntry = entry
+                                result.success(
+                                    mapOf(
+                                        "textureId" to entry.id(),
+                                        "aspectRatio" to aspect,
+                                    )
+                                )
+                            }
+                        }
+                    } catch (t: Throwable) {
+                        mainHandler.post {
                             surface.release()
                             entry.release()
-                            result.error("START_FAILED", err, null)
-                        } else {
-                            activeSurface?.release()
-                            surfaceEntry?.release()
-                            activeSurface = surface
-                            surfaceEntry = entry
-                            result.success(
-                                mapOf(
-                                    "textureId" to entry.id(),
-                                    "aspectRatio" to aspect,
-                                )
-                            )
+                            result.error("NATIVE_EXCEPTION", t.message ?: t.toString(), null)
                         }
                     }
                 }
@@ -165,11 +173,14 @@ class DosboxEnginePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 activeSurface = null
                 surfaceEntry = null
                 lifecycleExecutor.execute {
-                    DosboxNative.nativeStop()
-                    mainHandler.post {
-                        oldSurface?.release()
-                        oldEntry?.release()
-                        result.success(null)
+                    try {
+                        DosboxNative.nativeStop()
+                    } finally {
+                        mainHandler.post {
+                            oldSurface?.release()
+                            oldEntry?.release()
+                            result.success(null)
+                        }
                     }
                 }
             }
